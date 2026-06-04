@@ -8,7 +8,7 @@ from rag import RAGService
 from schemas import AskRequest, AskResponse, UploadRequest, UploadResponse
 
 
-MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "vietnamese-sbert"
+MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "multilingual-e5-small"
 
 
 def create_app(rag_service=None, llm_client=None) -> FastAPI:

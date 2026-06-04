@@ -3,8 +3,8 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
 
-MODEL_NAME = "keepitreal/vietnamese-sbert"
-TARGET_PATH = Path(__file__).resolve().parents[1] / "models" / "vietnamese-sbert"
+MODEL_NAME = "intfloat/multilingual-e5-small"
+TARGET_PATH = Path(__file__).resolve().parents[1] / "models" / "multilingual-e5-small"
 
 
 def main() -> None:

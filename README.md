@@ -2,8 +2,8 @@
 
 FastAPI service for uploading Vietnamese text and answering questions with:
 
-- Local embeddings from `keepitreal/vietnamese-sbert`
-- In-memory FAISS similarity search
+- CPU-friendly multilingual embeddings from `intfloat/multilingual-e5-small`
+- Sentence-aware chunking and in-memory FAISS HNSW similarity search
 - OpenAI-compatible Teacher Proxy answer generation over LAN
 
 ## Requirements
@@ -28,10 +28,14 @@ STUDENT_SERVER_URL=http://192.168.1.15:8000
 LLM_PROXY_MODEL=gpt-4o-mini
 ```
 
-The embedding model is loaded exclusively from `models/vietnamese-sbert/`.
+The embedding model is loaded exclusively from `models/multilingual-e5-small/`.
 The server exits during startup with a download instruction if the model is
 missing. FAISS vectors and document metadata are stored in RAM and reset when
-the server restarts.
+the server restarts. Uploaded text is chunked by paragraph and sentence first,
+with word-overlap windows for long passages, so retrieved context is less likely
+to cut through Vietnamese sentences. Retrieval uses `IndexHNSWFlat` with inner
+product over normalized embeddings, trading exact search for faster in-memory
+search on larger document sets while keeping recall high with `efSearch`.
 
 The `models/` directory is not committed to Git. After cloning the repository,
 run `uv run python scripts/download_embedding_model.py` before starting the
