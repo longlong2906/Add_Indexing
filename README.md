@@ -30,8 +30,8 @@ LLM_PROXY_MODEL=gpt-4o-mini
 
 The embedding model is loaded exclusively from `models/multilingual-e5-small/`.
 The server exits during startup with a download instruction if the model is
-missing. FAISS vectors and document metadata are stored in RAM and reset when
-the server restarts. Uploaded text is chunked by paragraph and sentence first,
+missing. FAISS vectors and document metadata are persisted under `storage/rag/`
+so uploaded documents survive server reloads and restarts. Uploaded text is chunked by paragraph and sentence first,
 with word-overlap windows for long passages, so retrieved context is less likely
 to cut through Vietnamese sentences. Retrieval uses `IndexHNSWFlat` with inner
 product over normalized embeddings, trading exact search for faster in-memory
@@ -72,7 +72,6 @@ uv run uvicorn app:app --app-dir src --reload
 ```
 
 In another terminal, register the Student Server URL with the Teacher Proxy.
-After registration succeeds, the script automatically starts the evaluation:
 
 ```powershell
 uv run python scripts/register_competition.py
@@ -88,14 +87,50 @@ Content-Type: application/json
 {"server_url": "{STUDENT_SERVER_URL}"}
 ```
 
-The registration request timeout is `100` seconds. Evaluation may take up to
+The registration request timeout is `100` seconds. After registration succeeds,
+start the evaluation manually:
+
+```powershell
+uv run python scripts/evaluate_competition.py
+```
+
+Evaluation may take up to
 `20` minutes because the Teacher Proxy uploads documents and asks multiple
 questions before returning the score.
+
+The evaluation client sends:
+
+```http
+POST {TEACHER_PROXY_BASE_URL}/competition/evaluate
+X-Student-ID: {STUDENT_ID}
+Content-Type: application/json
+
+{"document_received": false}
+```
+
+The expected evaluation response is:
+
+```json
+{
+  "message": "B21DCCN629",
+  "final_score": 8.0
+}
+```
 
 To clear the previous score and competition state before trying again:
 
 ```powershell
 uv run python scripts/reset_competition.py
+```
+
+The reset request does not send a JSON body. The expected reset response is:
+
+```json
+{
+  "status": "success",
+  "message": "Da reset trang thai.",
+  "score": 5.0
+}
 ```
 
 To view the current score and evaluation progress in another terminal:

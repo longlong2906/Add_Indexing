@@ -2,13 +2,15 @@ import importlib.util
 import json
 from pathlib import Path
 
+from competition_client import CompetitionRegistrationError
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "reset_competition.py"
+
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "evaluate_competition.py"
 REGISTRATION_ENV = ("STUDENT_ID", "TEACHER_PROXY_BASE_URL")
 
 
 def load_script():
-    spec = importlib.util.spec_from_file_location("reset_competition", SCRIPT_PATH)
+    spec = importlib.util.spec_from_file_location("evaluate_competition", SCRIPT_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -20,7 +22,7 @@ def clear_registration_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_main_loads_dotenv_and_prints_success(monkeypatch, tmp_path, capsys):
+def test_main_loads_dotenv_and_prints_evaluation(monkeypatch, tmp_path, capsys):
     clear_registration_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text(
@@ -34,16 +36,15 @@ def test_main_loads_dotenv_and_prints_success(monkeypatch, tmp_path, capsys):
         def __init__(self, base_url):
             assert base_url == "http://teacher/api/v1"
 
-        def reset(self, student_id):
+        def evaluate(self, student_id):
             assert student_id == "B21DCCN629"
             return type(
                 "Response",
                 (),
                 {
                     "model_dump": lambda self: {
-                        "status": "success",
-                        "message": "Da reset trang thai.",
-                        "score": 5.0,
+                        "message": "B21DCCN629",
+                        "final_score": 8.0,
                     }
                 },
             )()
@@ -52,9 +53,8 @@ def test_main_loads_dotenv_and_prints_success(monkeypatch, tmp_path, capsys):
 
     assert script.main() == 0
     assert json.loads(capsys.readouterr().out) == {
-        "status": "success",
-        "message": "Da reset trang thai.",
-        "score": 5.0,
+        "message": "B21DCCN629",
+        "final_score": 8.0,
     }
 
 
@@ -65,3 +65,26 @@ def test_main_returns_nonzero_when_configuration_is_missing(monkeypatch, tmp_pat
 
     assert script.main() == 1
     assert "TEACHER_PROXY_BASE_URL is not configured." in capsys.readouterr().err
+
+
+def test_main_returns_nonzero_when_evaluation_fails(monkeypatch, tmp_path, capsys):
+    clear_registration_env(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text(
+        "STUDENT_ID=B21DCCN629\n"
+        "TEACHER_PROXY_BASE_URL=http://teacher/api/v1\n",
+        encoding="utf-8",
+    )
+    script = load_script()
+
+    class FakeClient:
+        def __init__(self, base_url):
+            pass
+
+        def evaluate(self, student_id):
+            raise CompetitionRegistrationError("evaluate failed")
+
+    monkeypatch.setattr(script, "CompetitionClient", FakeClient)
+
+    assert script.main() == 1
+    assert capsys.readouterr().err.strip() == "evaluate failed"

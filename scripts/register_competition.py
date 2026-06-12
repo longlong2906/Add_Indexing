@@ -1,5 +1,4 @@
 import os
-import json
 import sys
 from pathlib import Path
 
@@ -27,12 +26,10 @@ def main() -> int:
             required_env("STUDENT_ID"),
             required_env("STUDENT_SERVER_URL"),
         )
-        evaluation = client.evaluate(required_env("STUDENT_ID"))
     except CompetitionRegistrationError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     print(response.message)
-    print(json.dumps(evaluation.model_dump(), ensure_ascii=False, indent=2))
     return 0
 
 

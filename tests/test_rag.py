@@ -85,6 +85,22 @@ def test_upload_and_search_use_e5_passage_and_query_prefixes():
     assert embedder.encoded_texts == ["passage: alpha", "query: alpha question"]
 
 
+def test_persistent_storage_survives_service_recreation(tmp_path):
+    storage_path = tmp_path / "rag"
+    first_service = RAGService(FakeEmbedder(), storage_path=storage_path)
+    first_service.upload("doc-alpha", "alpha")
+
+    second_service = RAGService(FakeEmbedder(), storage_path=storage_path)
+
+    chunks, sources = second_service.search("alpha question", top_k=1)
+
+    assert chunks == ["alpha"]
+    assert sources == ["doc-alpha"]
+    assert second_service.document_count == 1
+    assert (storage_path / "index.faiss").is_file()
+    assert (storage_path / "metadata.json").is_file()
+
+
 def test_upload_creates_hnsw_inner_product_index_with_configured_construction():
     service = RAGService(FakeEmbedder(), hnsw_m=16, hnsw_ef_construction=80)
 

@@ -116,14 +116,12 @@ def test_register_rejects_mismatched_response(monkeypatch):
 def test_evaluate_sends_expected_request(monkeypatch):
     captured = {}
 
-    def fake_post(url, headers, timeout):
-        captured.update(url=url, headers=headers, timeout=timeout)
+    def fake_post(url, headers, json, timeout):
+        captured.update(url=url, headers=headers, json=json, timeout=timeout)
         return FakeResponse(
             {
-                "student_id": "B21DCCN629",
-                "score": 8.0,
-                "status": "completed",
-                "detail": [{"question": 1, "score": 1.0}],
+                "message": "B21DCCN629",
+                "final_score": 8.0,
             }
         )
 
@@ -132,36 +130,36 @@ def test_evaluate_sends_expected_request(monkeypatch):
 
     response = client.evaluate("B21DCCN629")
 
-    assert response.score == 8.0
-    assert response.detail == [{"question": 1, "score": 1.0}]
+    assert response.final_score == 8.0
+    assert response.message == "B21DCCN629"
     assert captured == {
         "url": "http://192.168.50.218:8000/api/v1/competition/evaluate",
         "headers": {"X-Student-ID": "B21DCCN629"},
+        "json": {"document_received": False},
         "timeout": 1200.0,
     }
 
 
-def test_evaluate_rejects_mismatched_student_id(monkeypatch):
+def test_evaluate_accepts_message_that_does_not_match_student_id(monkeypatch):
     monkeypatch.setattr(
         requests,
         "post",
         lambda *args, **kwargs: FakeResponse(
             {
-                "student_id": "OTHER",
-                "score": 8.0,
-                "status": "completed",
-                "detail": [],
+                "message": "Evaluation completed",
+                "final_score": 8.0,
             }
         ),
     )
     client = CompetitionClient("http://192.168.50.218:8000/api/v1")
 
-    with pytest.raises(CompetitionRegistrationError, match="does not match"):
-        client.evaluate("B21DCCN629")
+    response = client.evaluate("B21DCCN629")
+
+    assert response.message == "Evaluation completed"
 
 
 def test_evaluate_rejects_invalid_response_schema(monkeypatch):
-    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: FakeResponse({"score": 8.0}))
+    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: FakeResponse({"message": "ok"}))
     client = CompetitionClient("http://192.168.50.218:8000/api/v1")
 
     with pytest.raises(CompetitionRegistrationError, match="invalid response"):
@@ -173,7 +171,13 @@ def test_reset_sends_expected_request(monkeypatch):
 
     def fake_post(url, headers, timeout):
         captured.update(url=url, headers=headers, timeout=timeout)
-        return FakeResponse({"status": "success", "message": "Da reset trang thai."})
+        return FakeResponse(
+            {
+                "status": "success",
+                "message": "Da reset trang thai.",
+                "score": 5.0,
+            }
+        )
 
     monkeypatch.setattr(requests, "post", fake_post)
     client = CompetitionClient("http://192.168.50.218:8000/api/v1")
@@ -181,6 +185,7 @@ def test_reset_sends_expected_request(monkeypatch):
     response = client.reset("B21DCCN629")
 
     assert response.message == "Da reset trang thai."
+    assert response.score == 5.0
     assert captured == {
         "url": "http://192.168.50.218:8000/api/v1/competition/reset",
         "headers": {"X-Student-ID": "B21DCCN629"},
@@ -204,7 +209,16 @@ def test_competition_action_maps_request_errors(monkeypatch, method, failure):
 
 
 def test_reset_rejects_invalid_response_schema(monkeypatch):
-    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: FakeResponse({"status": "success"}))
+    monkeypatch.setattr(
+        requests,
+        "post",
+        lambda *args, **kwargs: FakeResponse(
+            {
+                "status": "success",
+                "message": "Da reset trang thai.",
+            }
+        ),
+    )
     client = CompetitionClient("http://192.168.50.218:8000/api/v1")
 
     with pytest.raises(CompetitionRegistrationError, match="invalid response"):

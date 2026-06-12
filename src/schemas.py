@@ -1,5 +1,3 @@
-from typing import Any
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -47,16 +45,19 @@ class RegisterResponse(BaseModel):
     server_url: str
 
 
+class EvaluateRequest(BaseModel):
+    document_received: bool | None = False
+
+
 class EvaluateResponse(BaseModel):
-    student_id: str
-    score: float
-    status: str
-    detail: list[Any]
+    message: str
+    final_score: float
 
 
 class ResetResponse(BaseModel):
     status: str
     message: str
+    score: float
 
 
 class ResultResponse(BaseModel):

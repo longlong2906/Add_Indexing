@@ -1,5 +1,4 @@
 import importlib.util
-import json
 from pathlib import Path
 
 from competition_client import CompetitionRegistrationError
@@ -43,31 +42,12 @@ def test_main_loads_dotenv_and_prints_success(monkeypatch, tmp_path, capsys):
             return type("Response", (), {"message": "Dang ky thanh cong!"})()
 
         def evaluate(self, student_id):
-            assert student_id == "B21DCCN629"
-            return type(
-                "Response",
-                (),
-                {
-                    "model_dump": lambda self: {
-                        "student_id": "B21DCCN629",
-                        "score": 8.0,
-                        "status": "completed",
-                        "detail": [],
-                    }
-                },
-            )()
+            raise AssertionError("evaluate should not be called")
 
     monkeypatch.setattr(script, "CompetitionClient", FakeClient)
 
     assert script.main() == 0
-    output = capsys.readouterr().out.splitlines()
-    assert output[0] == "Dang ky thanh cong!"
-    assert json.loads("\n".join(output[1:])) == {
-        "student_id": "B21DCCN629",
-        "score": 8.0,
-        "status": "completed",
-        "detail": [],
-    }
+    assert capsys.readouterr().out.strip() == "Dang ky thanh cong!"
 
 
 def test_main_returns_nonzero_when_configuration_is_missing(monkeypatch, tmp_path, capsys):
@@ -106,7 +86,7 @@ def test_main_does_not_evaluate_when_registration_fails(monkeypatch, tmp_path, c
     assert capsys.readouterr().err.strip() == "register failed"
 
 
-def test_main_does_not_reset_when_evaluation_fails(monkeypatch, tmp_path, capsys):
+def test_main_returns_success_without_running_evaluation(monkeypatch, tmp_path, capsys):
     clear_registration_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text(
@@ -125,12 +105,9 @@ def test_main_does_not_reset_when_evaluation_fails(monkeypatch, tmp_path, capsys
             return type("Response", (), {"message": "Dang ky thanh cong!"})()
 
         def evaluate(self, student_id):
-            raise CompetitionRegistrationError("evaluate failed")
-
-        def reset(self, student_id):
-            raise AssertionError("reset should not be called")
+            raise AssertionError("evaluate should not be called")
 
     monkeypatch.setattr(script, "CompetitionClient", FakeClient)
 
-    assert script.main() == 1
-    assert capsys.readouterr().err.strip() == "evaluate failed"
+    assert script.main() == 0
+    assert capsys.readouterr().out.strip() == "Dang ky thanh cong!"

@@ -3,7 +3,14 @@ from urllib.parse import urlparse
 import requests
 from pydantic import ValidationError
 
-from schemas import EvaluateResponse, RegisterPayload, RegisterResponse, ResetResponse, ResultResponse
+from schemas import (
+    EvaluateRequest,
+    EvaluateResponse,
+    RegisterPayload,
+    RegisterResponse,
+    ResetResponse,
+    ResultResponse,
+)
 
 
 class CompetitionRegistrationError(RuntimeError):
@@ -44,15 +51,21 @@ class CompetitionClient:
         return registration
 
     def evaluate(self, student_id: str) -> EvaluateResponse:
-        evaluation = self._post_action(
-            "evaluate",
-            student_id,
-            EvaluateResponse,
-            self.EVALUATE_TIMEOUT,
-        )
-        if evaluation.student_id != student_id:
-            raise CompetitionRegistrationError("Teacher Proxy response does not match the request.")
-        return evaluation
+        self._validate_student_id(student_id)
+        payload = EvaluateRequest(document_received=False)
+        try:
+            response = requests.post(
+                f"{self.teacher_proxy_base_url}/competition/evaluate",
+                headers={"X-Student-ID": student_id},
+                json=payload.model_dump(),
+                timeout=self.EVALUATE_TIMEOUT,
+            )
+            response.raise_for_status()
+            return EvaluateResponse.model_validate(response.json())
+        except ValidationError as exc:
+            raise CompetitionRegistrationError("Teacher Proxy returned an invalid response.") from exc
+        except (requests.RequestException, TypeError, ValueError) as exc:
+            raise CompetitionRegistrationError("Competition request failed.") from exc
 
     def reset(self, student_id: str) -> ResetResponse:
         return self._post_action(

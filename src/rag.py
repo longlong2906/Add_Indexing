@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+import json
 from pathlib import Path
 import re
 from uuid import uuid4
@@ -26,6 +27,7 @@ class RAGService:
         hnsw_m: int = 32,
         hnsw_ef_construction: int = 200,
         hnsw_ef_search: int = 96,
+        storage_path: Path | str | None = None,
     ):
         if chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
@@ -43,11 +45,13 @@ class RAGService:
         self.hnsw_m = hnsw_m
         self.hnsw_ef_construction = hnsw_ef_construction
         self.hnsw_ef_search = hnsw_ef_search
+        self.storage_path = Path(storage_path) if storage_path is not None else None
         self.index = None
         self.metadata: list[ChunkMetadata] = []
+        self._load_storage()
 
     @classmethod
-    def from_local_model(cls, model_path: Path | str):
+    def from_local_model(cls, model_path: Path | str, storage_path: Path | str | None = None):
         from sentence_transformers import SentenceTransformer
 
         model_path = Path(model_path)
@@ -56,7 +60,7 @@ class RAGService:
                 f"Embedding model not found at {model_path}. "
                 "Run: uv run python scripts/download_embedding_model.py"
             )
-        return cls(SentenceTransformer(str(model_path)))
+        return cls(SentenceTransformer(str(model_path)), storage_path=storage_path)
 
     @property
     def document_count(self) -> int:
@@ -104,6 +108,7 @@ class RAGService:
             )
             for position, chunk in enumerate(chunks)
         )
+        self._save_storage()
         return doc_id, len(chunks)
 
     def search(self, question: str, top_k: int = 3) -> tuple[list[str], list[str]]:
@@ -123,6 +128,40 @@ class RAGService:
         index.hnsw.efConstruction = self.hnsw_ef_construction
         index.hnsw.efSearch = self.hnsw_ef_search
         return index
+
+    @property
+    def _index_path(self) -> Path | None:
+        if self.storage_path is None:
+            return None
+        return self.storage_path / "index.faiss"
+
+    @property
+    def _metadata_path(self) -> Path | None:
+        if self.storage_path is None:
+            return None
+        return self.storage_path / "metadata.json"
+
+    def _load_storage(self) -> None:
+        index_path = self._index_path
+        metadata_path = self._metadata_path
+        if index_path is None or metadata_path is None:
+            return
+        if not index_path.is_file() or not metadata_path.is_file():
+            return
+        self.index = faiss.read_index(str(index_path))
+        with metadata_path.open("r", encoding="utf-8") as file:
+            metadata = json.load(file)
+        self.metadata = [ChunkMetadata(**item) for item in metadata]
+
+    def _save_storage(self) -> None:
+        index_path = self._index_path
+        metadata_path = self._metadata_path
+        if index_path is None or metadata_path is None or self.index is None:
+            return
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        faiss.write_index(self.index, str(index_path))
+        with metadata_path.open("w", encoding="utf-8") as file:
+            json.dump([asdict(item) for item in self.metadata], file, ensure_ascii=False, indent=2)
 
     def _encode_passages(self, texts: list[str]) -> np.ndarray:
         return self._encode([f"passage: {text}" for text in texts])
