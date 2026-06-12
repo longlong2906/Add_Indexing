@@ -117,6 +117,20 @@ The expected evaluation response is:
 }
 ```
 
+To send `document_received` as `true` instead of `false`, open
+`src/competition_client.py` and find the `evaluate` method (line 55):
+
+```diff
+-        payload = EvaluateRequest(document_received=False)
++        payload = EvaluateRequest(document_received=True)
+```
+
+Then run the evaluation script as usual:
+
+```powershell
+uv run python scripts/evaluate_competition.py
+```
+
 To clear the previous score and competition state before trying again:
 
 ```powershell

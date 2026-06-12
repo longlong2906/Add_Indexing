@@ -18,7 +18,7 @@ class CompetitionRegistrationError(RuntimeError):
 
 
 class CompetitionClient:
-    EVALUATE_TIMEOUT = 1200.0
+    EVALUATE_TIMEOUT = 6600.0
     RESET_TIMEOUT = 30.0
     RESULT_TIMEOUT = 30.0
 
